@@ -6,7 +6,9 @@ Created on Fri Oct 13 15:21:41 2023
 """
 
 import numpy as np
+import copy
 import matplotlib.pyplot as plt
+from timefuncs import datetime_to_unix_seconds, unix_seconds_to_datetime
 def MaxCrossCorr(t,x,y,legend = ["X", "Y"]):
     plt.plot(t,x)
     plt.plot(t,y)
@@ -15,10 +17,7 @@ def MaxCrossCorr(t,x,y,legend = ["X", "Y"]):
     plt.legend(legend)
     plt.show()
     vals=[]
-    for i in range(0,len(x)):    
-        temp=np.corrcoef(x,y)[1,0]
-        vals.append(temp)
-        x=np.roll(x,1)
+    vals=np.correlate(x,y)/(np.linalg.norm(x)*np.linalg.norm(y))
     shiftedX=np.roll(x,np.argmax(vals))
     plt.plot(t,shiftedX)
     plt.plot(t,y)
@@ -47,33 +46,61 @@ def find_closest_index(lst, target_value):
     closest_index = min(range(len(lst)), key=lambda i: abs(lst[i] - target_value))
     return closest_index
 
-def crossCorrShift(t,x,y,tshift,plot=False):
-    indShift=find_closest_index(t, tshift)
-    print(indShift)
-    x=np.roll(x,-1*indShift)    
-    zeroCorr=np.corrcoef(x,y)[1,0]
-    vals=[]
-    if plot==True:
-        plt.plot(t,x)
-        plt.plot(t,y)
-        plt.show()
+def crossCorrShift(t, x, y, tshift, plot=False):
+    """
+    Computes the cross-correlation between two signals and determines the time shift based on a provided prediction.
     
-    for i in range(0,len(x)):    
-        temp=np.corrcoef(x,y)[1,0]
-        vals.append(temp)
-        x=np.roll(x,1)
-    vals=vals[::-1]
-    vals=np.roll(vals,int(len(vals)/2))
-    t=t-np.mean(t)
-    if plot==True:
-        plt.plot(t,vals)    
+    Parameters:
+    t (array-like): Time axis for the signals.
+    x (array-like): First signal array.
+    y (array-like): Second signal array.
+    tshift (float): Predicted time shift for aligning signals.
+    plot (bool, optional): Controls whether to plot signals and correlation results. Defaults to False.
+    
+    Returns:
+    tuple: A tuple containing:
+        - vals (array-like): Array of correlation coefficients for various time shifts.
+        - offSet (float): Time offset between signals based on the prediction.
+        - zeroCorr (float): Correlation coefficient at zero time shift.
+    """
+
+    tTemp = t-t[0]
+    if plot:
+        tplot=unix_seconds_to_datetime(t)
+        plt.plot(tplot,x)
+        plt.plot(tplot,y)
+        plt.title("No shift")
+        plt.show()
+    indShift = int(find_closest_index(tTemp, tshift))
+    y = np.roll(y, indShift)
+    norm=np.linalg.norm(x)*np.linalg.norm(y)
+    if plot:
+        plt.plot(tplot, x)
+        plt.plot(tplot, y)
+        plt.title("Calculated shift")
+        plt.show()
+    vals = np.correlate(x, y, 'same') / (norm)
+
+    #plt.plot(vals)
+    #plt.show()
+    if plot:
+        tTemp = tTemp - np.mean(tTemp)
+        plt.plot(tTemp, vals)
         plt.axvline(0, linestyle='dashed')
         plt.xlabel("$\Delta t$")
         plt.ylabel("Correlation Coefficient")
         plt.show()
-    
-    offSet=t[np.argmax(vals)]-t[find_closest_index(t, 0)]
-    return vals, offSet,zeroCorr
+    else:
+        tTemp = tTemp - np.mean(tTemp)
+    # Uncommented lines for testing
+    #vals = vals[::-1]
+    offSet = tTemp[np.argmax(vals)] - tTemp[find_closest_index(tTemp, 0)]
+    vals = np.roll(vals, int(len(vals)/2))   
+
+    zeroCorr=vals[0]
+
+    return vals, offSet, zeroCorr, np.max(vals)
+
 
 
     
