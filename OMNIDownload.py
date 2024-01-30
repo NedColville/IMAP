@@ -2,7 +2,8 @@ import urllib3
 import csv
 import re
 import pandas as pd
-
+import matplotlib.pyplot as plt
+import numpy as np
 # Create an instance of the urllib3 PoolManager
 http = urllib3.PoolManager()
 
@@ -77,23 +78,23 @@ second_column_values = []
 # Open the text file for reading
 def extract_second_column_values(file_path):
     # Create a list to store the values from the second column
-    second_column_values = []
-
+    second_column_values = []   
+    thresholds=[]
     # Open the text file for reading
     with open(file_path, "r") as file:
         for line in file:
             # Split the line into words based on whitespace
-            words = line.split()
-
+            words = line.split()            
             # Check if the line contains at least two words (to avoid errors)
             if len(words) >= 2:
                 # Extract the second column value as a combination of words (excluding the last word)
                 second_column = ' '.join(words[1:len(words)-1])
                 second_column_values.append(second_column)
+                thresholds.append(words[-1])
 
-    return second_column_values[2:]
+    return second_column_values[2:], thresholds[2:]
 
-colTitles=extract_second_column_values("format.txt")
+colTitles, thresholds=extract_second_column_values("format.txt")
 df = pd.read_csv(csvname, header=None)
 df.columns=colTitles
 from datetime import datetime, timedelta
@@ -135,10 +136,69 @@ df=UnixConv(df,secs, minutes)
 df.to_csv(csvname, index=False)
 
 print("CSV save complete")
+def getThresholds(thresholds,minutes,secs):
+    vals=[]
+    skips=5
+    if minutes==False:
+        skips+=-1
+    if secs==False:
+        skips+=-1
+        
+    for i in range(skips,len(thresholds)):
+        big9=str("9")*20
+        if len(thresholds[i])==2:
+            num=int(thresholds[i][1])-1
+            vals.append(int(str("9"*num)))
+        elif len(thresholds[i])==4:            
+            num=int(big9[:int(thresholds[i][1])-2])
+            dec=int(thresholds[i][-1])
+            fin = str(num)[:-1*dec] +"."+str(num)[-1*dec:]
+            vals.append(float(fin))
+    return vals
+thresholds=getThresholds(thresholds, minutes, secs)
+def dataCleaner(csvname,thresholds,skipcols=1):
+    def interper(df, zeros,header):
+        headers=df.columns.values.tolist()[1:]
+        print(np.sum(zeros))
+        for i in range(0,len(zeros)):
+            if zeros[i]==1:
+                df.loc[i,header]=np.nan
+        temp=df[header]
+        df[header]=df[header].interpolate()
+        return df
+    def invalidIdent(df,skipcols=1):
+        bigzeros=np.zeros(len(df))
+        j=0
+        for column in df.columns[skipcols:]:            
+            zeros=np.zeros(len(df))
+            col=np.asarray(df[column])
+            for i in range(0,len(col)):
+                if col[i]==thresholds[j]:
+                    zeros[i]=1
+                    bigzeros[i]=1
+            df=interper(df,zeros,column)
+            j+=1
+        plt.show()
+        plt.hist(bigzeros)
+        plt.xlabel("0=Valid, 1=Invalid")
+        plt.ylabel("Frequency")
+        plt.show()
+        print("Invalid data: "+str(100*round(np.sum(bigzeros)/len(zeros),3))+"%")
+        return zeros
+    df=pd.read_csv(csvname)
+    zeros=invalidIdent(df)
+    df=df.interpolate()
+    
+    def remover(df, zeros):
+        dfT=df.T
+        for i in range(0,len(zeros)):
+            if zeros[i]==1:
+                dfT.pop(i)
+        return dfT.T
+    
+    csvname=csvname.replace(".csv","Clean.csv")
+    df.to_csv(csvname,index=False)
+    print("Data saved as "+csvname)
+    return zeros, df
 
-
-
-
-
-
-
+dataCleaner(csvname,thresholds)
