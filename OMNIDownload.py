@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Feb  3 17:09:10 2024
+
+@author: Ned
+"""
+
 import urllib3
 import csv
 import re
@@ -137,7 +144,7 @@ df.to_csv(csvname, index=False)
 
 print("CSV save complete")
 def getThresholds(thresholds,minutes,secs):
-    vals=[]
+    vals=[np.nan]
     skips=5
     if minutes==False:
         skips+=-1
@@ -157,48 +164,22 @@ def getThresholds(thresholds,minutes,secs):
     return vals
 thresholds=getThresholds(thresholds, minutes, secs)
 def dataCleaner(csvname,thresholds,skipcols=1):
-    def interper(df, zeros,header):
-        headers=df.columns.values.tolist()[1:]
-        print(np.sum(zeros))
-        for i in range(0,len(zeros)):
-            if zeros[i]==1:
-                df.loc[i,header]=np.nan
-        temp=df[header]
-        df[header]=df[header].interpolate()
-        return df
-    def invalidIdent(df,skipcols=1):
-        bigzeros=np.zeros(len(df))
-        j=0
-        for column in df.columns[skipcols:]:            
-            zeros=np.zeros(len(df))
-            col=np.asarray(df[column])
-            for i in range(0,len(col)):
-                if col[i]==thresholds[j]:
-                    zeros[i]=1
-                    bigzeros[i]=1
-            df=interper(df,zeros,column)
-            j+=1
-        plt.show()
-        plt.hist(bigzeros)
-        plt.xlabel("0=Valid, 1=Invalid")
-        plt.ylabel("Frequency")
-        plt.show()
-        print("Invalid data: "+str(100*round(np.sum(bigzeros)/len(zeros),3))+"%")
-        return zeros
     df=pd.read_csv(csvname)
-    zeros=invalidIdent(df)
-    df=df.interpolate()
+    fill_counts = [df[column].eq(fill_value).sum() for column, fill_value in zip(df.columns, thresholds)]
+
+    # Print the counts
+    print("Fill Value Percentages:")
+    for column, count in zip(df.columns, fill_counts):
+        print(f"{column}: {100*count/(df.shape[0])} %")
     
-    def remover(df, zeros):
-        dfT=df.T
-        for i in range(0,len(zeros)):
-            if zeros[i]==1:
-                dfT.pop(i)
-        return dfT.T
-    
+    # Interpolate fill values in the DataFrame for each column
+    for column, fill_value in zip(df.columns, thresholds):
+        df[column].replace(fill_value, np.nan, inplace=True)
+        df[column].interpolate(method='linear', inplace=True)
     csvname=csvname.replace(".csv","Clean.csv")
     df.to_csv(csvname,index=False)
-    print("Data saved as "+csvname)
-    return zeros, df
+    print("Data saved as "+csvname)      
+
+    return
 
 dataCleaner(csvname,thresholds)
