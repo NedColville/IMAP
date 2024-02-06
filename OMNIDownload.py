@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue Feb  6 13:26:18 2024
+
+@author: Ned
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Sat Feb  3 17:09:10 2024
 
 @author: Ned
@@ -140,9 +147,7 @@ else:
 
 df=UnixConv(df,secs, minutes)
 #df=UnixConv(df,secs)
-df.to_csv(csvname, index=False)
 
-print("CSV save complete")
 def getThresholds(thresholds,minutes,secs):
     vals=[np.nan]
     skips=5
@@ -163,8 +168,7 @@ def getThresholds(thresholds,minutes,secs):
             vals.append(float(fin))
     return vals
 thresholds=getThresholds(thresholds, minutes, secs)
-def dataCleaner(csvname,thresholds,skipcols=1):
-    df=pd.read_csv(csvname)
+def makeNan(df,thresholds):
     fill_counts = [df[column].eq(fill_value).sum() for column, fill_value in zip(df.columns, thresholds)]
 
     # Print the counts
@@ -174,12 +178,21 @@ def dataCleaner(csvname,thresholds,skipcols=1):
     
     # Interpolate fill values in the DataFrame for each column
     for column, fill_value in zip(df.columns, thresholds):
-        df[column].replace(fill_value, np.nan, inplace=True)
-        df[column].interpolate(method='linear', inplace=True)
+        df[column].replace(fill_value, np.nan, inplace=True)    
+
+    return df
+df=makeNan(df,thresholds)
+df.to_csv(csvname, index=False)
+
+print("CSV save complete")
+def dataCleaner(df,thresholds,csvname, interpLimit=10):
+    # Interpolate fill values in the DataFrame for each column
+    for column in df.columns:
+        df[column].interpolate(method='linear', inplace=True,limit=interpLimit)
     csvname=csvname.replace(".csv","Clean.csv")
     df.to_csv(csvname,index=False)
     print("Data saved as "+csvname)      
 
     return
 
-dataCleaner(csvname,thresholds)
+dataCleaner(df,thresholds,csvname,10)
